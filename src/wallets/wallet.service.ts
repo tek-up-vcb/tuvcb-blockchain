@@ -15,7 +15,7 @@ export class WalletService {
   // Créer un nouveau wallet utilisateur
   createWallet(): UserWallet {
     // Générer un wallet Ethereum aléatoire
-    const wallet = ethers.Wallet.createRandom(); // génère une nouvelle clé aléatoire:contentReference[oaicite:26]{index=26}
+    const wallet = ethers.Wallet.createRandom(); // génère une nouvelle clé aléatoire
 
     const userWallet: UserWallet = {
       id: this.nextId++,

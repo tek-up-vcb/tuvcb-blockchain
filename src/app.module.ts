@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.ts';
-import { AppService } from './app.service.ts';
-import { BlockchainService } from './Blockchain/blockchain.service.ts';
-import { WalletService } from './wallets/wallet.service.ts';
-import { IpfsService } from './ipfs/ipfs.service.ts';
-import { DiplomaController } from './diploma/diploma.controller.ts';
-import { WalletController } from './wallets/wallet.controller.ts';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { BlockchainService } from './Blockchain/blockchain.service';
+import { WalletService } from './wallets/wallet.service';
+import { IpfsService } from './ipfs/ipfs.service';
+import { DiplomaController } from './diploma/diploma.controller';
+import { WalletController } from './wallets/wallet.controller';
 
 @Module({
   imports: [],

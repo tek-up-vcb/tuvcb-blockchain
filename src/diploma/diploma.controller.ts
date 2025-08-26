@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
-import { IpfsService } from '../ipfs/ipfs.service.ts';
-import { WalletService } from '../wallets/wallet.service.ts';
-import { BlockchainService } from '../Blockchain/blockchain.service.jt';
+import { IpfsService } from '../ipfs/ipfs.service';
+import { WalletService } from '../wallets/wallet.service';
+import { BlockchainService } from '../Blockchain/blockchain.service';
 
 @Controller('diplomas')
 export class DiplomaController {
