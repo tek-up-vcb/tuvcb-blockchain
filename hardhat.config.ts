@@ -1,24 +1,23 @@
+// hardhat.config.ts
 import { HardhatUserConfig } from 'hardhat/config';
-import '@nomiclabs/hardhat-ethers';
-import '@nomicfoundation/hardhat-toolbox';
+import '@nomicfoundation/hardhat-toolbox-mocha-ethers';
 
 const config: HardhatUserConfig = {
-  solidity: '0.8.18', // Version de Solidity à utiliser
+  solidity: '0.8.18', // aligne avec le pragma de tes contrats
   defaultNetwork: 'hardhat',
   networks: {
     hardhat: {
-      // configuration du réseau local Hardhat (par défaut pas besoin de plus,
-      // il crée 20 comptes avec 10000 ETH fictifs chacun)
+      type: 'edr-simulated', // réseau simulé Hardhat v3
+      chainType: 'l1',
       mining: {
         auto: true,
-        interval: 0, // mine instantanément chaque transaction
+        interval: 1000, // 1s : pas besoin de allowBlocksWithSameTimestamp
       },
     },
-    // on pourrait configurer d'autres réseaux (testnets, etc.) si besoin
   },
   paths: {
-    sources: './src/blockchain/contracts', // emplacement des contrats Solidity
-    artifacts: './src/blockchain/artifacts', // où générer les fichiers compilés (ABI, bytecode)
+    sources: './src/blockchain/contracts',
+    artifacts: './src/blockchain/artifacts',
   },
 };
 
