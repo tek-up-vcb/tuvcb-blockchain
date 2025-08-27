@@ -1,81 +1,189 @@
+import 'dotenv/config';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import hre from 'hardhat';
+import { ethers } from 'ethers';
+import fs from 'node:fs';
+import path from 'node:path';
+
+type DiplomaInfo = {
+  owner: string;
+  ipfsHash: string;
+  valid: boolean;
+};
 
 @Injectable()
 export class BlockchainService implements OnModuleInit {
+  private provider!: ethers.JsonRpcProvider;
+  private deployer!: ethers.Signer;
+
   private diplomaContractAddress!: string;
-  private diplomaContractAbi!: any; // on peut typer plus finement via typechain, mais pour simplicité any
+  private diplomaContractAbi!: any;
+  private diplomaBytecode!: `0x${string}`;
 
   async onModuleInit() {
-    // Au démarrage du module (application), on déploie le contrat DiplomaRegistry
-    await this.deployContract();
+    // 1) Provider local (lance `npx hardhat node` dans un autre terminal)
+    const rpcUrl = process.env.RPC_URL || 'http://127.0.0.1:8545';
+    this.provider = new ethers.JsonRpcProvider(rpcUrl);
+
+    // 2) Déployeur :
+    //    - si DEPLOYER_PK défini -> wallet à partir de cette PK
+    //    - sinon -> wallet aléatoire + crédit via hardhat_setBalance (DEV ONLY)
+    const envPk = process.env.DEPLOYER_PK;
+    if (envPk) {
+      this.deployer = new ethers.Wallet(envPk, this.provider);
+      console.log(
+        '[Blockchain] Using DEPLOYER_PK:',
+        await this.deployer.getAddress(),
+      );
+    } else {
+      const tmp = ethers.Wallet.createRandom().connect(this.provider);
+      try {
+        // 1000 ETH en wei
+        const funded = 1000n * 10n ** 18n;
+        await this.provider.send('hardhat_setBalance', [
+          await tmp.getAddress(),
+          '0x' + funded.toString(16),
+        ]);
+        console.warn(
+          '[Blockchain] DEPLOYER_PK absent. Using a random funded wallet (dev-only):',
+          await tmp.getAddress(),
+        );
+      } catch (e) {
+        console.warn(
+          '[Blockchain] Could not fund random wallet via hardhat_setBalance. Is the provider a Hardhat node?',
+        );
+      }
+      this.deployer = tmp;
+    }
+
+    // 3) Charge l’artifact compilé (ABI + bytecode)
+    const loaded =
+      this.loadArtifact('DiplomaRegistry') ?? this.loadArtifact('Diploma');
+    if (!loaded) {
+      throw new Error(
+        'Artifact not found. Did you run `npx hardhat compile` ?',
+      );
+    }
+    this.diplomaContractAbi = loaded.abi;
+    this.diplomaBytecode = loaded.bytecode;
+
+    // 4) Déploie si pas d’adresse fournie
+    if (process.env.DIPLOMA_ADDRESS) {
+      this.diplomaContractAddress = process.env.DIPLOMA_ADDRESS;
+      const code = await this.provider.getCode(this.diplomaContractAddress);
+      if (code === '0x') {
+        throw new Error(
+          `Aucun contrat à l’adresse DIPLOMA_ADDRESS=${this.diplomaContractAddress}`,
+        );
+      }
+      console.log(
+        `Using existing DiplomaRegistry at ${this.diplomaContractAddress}`,
+      );
+    } else {
+      console.log('Deploying DiplomaRegistry smart contract...');
+      const factory = new ethers.ContractFactory(
+        this.diplomaContractAbi,
+        this.diplomaBytecode,
+        this.deployer,
+      );
+      const contract = await factory.deploy();
+      await contract.waitForDeployment();
+      this.diplomaContractAddress = await contract.getAddress();
+      console.log(
+        `Contract deployed at address: ${this.diplomaContractAddress}`,
+      );
+    }
   }
 
-  private async deployContract() {
-    console.log('Deploying DiplomaRegistry smart contract...');
-    const [deployer] = await hre.ethers.getSigners();
-    const factory = await hre.ethers.getContractFactory('DiplomaRegistry', deployer);
-    const contract = await factory.deploy();
-    await contract.waitForDeployment();
-    this.diplomaContractAddress = await contract.getAddress();
-    const artifact = await hre.artifacts.readArtifact('DiplomaRegistry');
-    this.diplomaContractAbi = artifact.abi;
-    console.log(`Contract deployed at address: ${this.diplomaContractAddress}`);
+  // Utilitaire: charge l’artifact JSON (ABI + bytecode) pour un nom de contrat
+  private loadArtifact(
+    contractName: string,
+  ): { abi: any; bytecode: `0x${string}` } | null {
+    // Hardhat : artifacts/contracts/<Nom>.sol/<Nom>.json
+    const candidatePaths = [
+      path.join(
+        process.cwd(),
+        'src',
+        'Blockchain',
+        'artifacts',
+        'contracts',
+        `${contractName}.sol`,
+        `${contractName}.json`,
+      ),
+      path.join(
+        process.cwd(),
+        'src',
+        'Blockchain',
+        'artifacts',
+        'contracts',
+        'Diploma.sol',
+        'Diploma.json',
+      ),
+    ];
+
+    for (const p of candidatePaths) {
+      if (fs.existsSync(p)) {
+        const artifact = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        return { abi: artifact.abi, bytecode: artifact.bytecode };
+      }
+    }
+    return null;
   }
 
-  // Méthode utilitaire pour obtenir une instance du contrat connecté avec un signataire particulier
-  private getContractInstance(signer?: any) {
+  // Récupère une instance du contrat (lecture seule si pas de signer)
+  private getContract(signer?: ethers.Signer) {
     if (!this.diplomaContractAddress) {
       throw new Error('Contract not deployed or address not set');
     }
-    // Si aucun signer fourni, on utilise le provider par défaut (lecture seule)
-    return new hre.ethers.Contract(
+    return new ethers.Contract(
       this.diplomaContractAddress,
       this.diplomaContractAbi,
-      signer || hre.ethers.provider,
+      signer ?? this.provider,
     );
   }
 
-  // Émettre un diplôme (stocke hash dans la blockchain) depuis une adresse donnée (owner)
+  // Émettre un diplôme depuis une clé privée donnée
   async issueDiplomaFrom(
     walletPrivateKey: string,
     ipfsHash: string,
   ): Promise<number> {
-    const signer = new hre.ethers.Wallet(walletPrivateKey, hre.ethers.provider);
-    const contract = this.getContractInstance(signer);
-    console.log(
-      `Issuing diploma by ${signer.address} with hash ${ipfsHash}...`,
-    );
+    const signer = new ethers.Wallet(walletPrivateKey, this.provider);
+    const contract = this.getContract(signer);
+
     const tx = await contract.issueDiploma(ipfsHash);
     const receipt = await tx.wait();
-    const event = receipt.logs?.find(
-      (e: any) => e.fragment?.name === 'DiplomaIssued',
-    );
-    const diplomaId = event?.args?.[0] ? Number(event.args[0]) : 0;
+
+    // Extraire l’ID depuis l’événement DiplomaIssued(uint256 id, ...)
+    let diplomaId = 0;
+    try {
+      for (const log of receipt!.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed?.name === 'DiplomaIssued') {
+            diplomaId = Number(parsed.args[0]);
+            break;
+          }
+        } catch {}
+      }
+    } catch {}
     return diplomaId;
   }
 
-  // Transférer un diplôme d'un propriétaire (fromPrivKey) à une autre adresse (toAddress)
+  // Transférer un diplôme
   async transferDiplomaFrom(
     fromPrivKey: string,
     diplomaId: number,
     toAddress: string,
   ): Promise<void> {
-    const signer = new hre.ethers.Wallet(fromPrivKey, hre.ethers.provider);
-    const contract = this.getContractInstance(signer);
-    console.log(
-      `Transferring diploma ${diplomaId} from ${signer.address} to ${toAddress} ...`,
-    );
+    const signer = new ethers.Wallet(fromPrivKey, this.provider);
+    const contract = this.getContract(signer);
     const tx = await contract.transferDiploma(diplomaId, toAddress);
     await tx.wait();
-    // Pas de valeur de retour particulière, on peut vérifier via event ou état si on veut
   }
 
-  // Récupérer les infos d'un diplôme depuis la blockchain (via appel constant)
-  async getDiplomaInfo(
-    diplomaId: number,
-  ): Promise<{ owner: string; ipfsHash: string; valid: boolean }> {
-    const contract = this.getContractInstance();
+  // Lire les infos d’un diplôme
+  async getDiplomaInfo(diplomaId: number): Promise<DiplomaInfo> {
+    const contract = this.getContract();
+    // Adapter l’ordre au retour réel de ton contrat (ici: (ipfsHash, owner, valid))
     const [ipfsHash, owner, valid] = await contract.getDiploma(diplomaId);
     return { owner, ipfsHash, valid };
   }

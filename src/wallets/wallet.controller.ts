@@ -1,7 +1,7 @@
 import { Controller, Post, Get } from '@nestjs/common';
-import { BlockchainService } from '../Blockchain/blockchain.service';
-import { WalletService } from './wallet.service';
+import { BlockchainService } from '../Blockchain/blockchain.service.js';
 import { JsonRpcProvider, parseEther } from 'ethers';
+import { WalletService } from './wallet.service.js';
 
 @Controller('wallets')
 export class WalletController {

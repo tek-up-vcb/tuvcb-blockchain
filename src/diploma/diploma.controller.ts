@@ -1,7 +1,8 @@
 import { Controller, Post, Get, Body, Param } from '@nestjs/common';
-import { IpfsService } from '../ipfs/ipfs.service';
-import { WalletService } from '../wallets/wallet.service';
-import { BlockchainService } from '../Blockchain/blockchain.service';
+
+import { BlockchainService } from '../Blockchain/blockchain.service.js';
+import { WalletService } from '../wallets/wallet.service.js';
+import { IpfsService } from '../ipfs/ipfs.service.js';
 
 @Controller('diplomas')
 export class DiplomaController {
@@ -15,20 +16,22 @@ export class DiplomaController {
   @Post('issue')
   async issueDiploma(
     @Body('userId') userId: number,
-    @Body('diplomaData') diplomaData: any, // données JSON du diplôme (ex: { name: 'Alice', degree: '....', year: 2025, ... })
+    @Body('diplomaData') diplomaData: any,
   ) {
-    // 1. Récupérer le wallet de l'utilisateur émetteur
     const userWallet = this.walletService.getWalletById(userId);
     if (!userWallet) {
       return { error: 'User wallet not found' };
     }
-    // 2. Stocker les données du diplôme via IPFS (simulation) -> obtenir un hash
+
+    // 1) Stocke le JSON (simulation IPFS) -> hash
     const ipfsHash = this.ipfsService.storeJSON(diplomaData);
-    // 3. Appeler le smart contract pour émettre le diplôme on-chain
+
+    // 2) Émet on-chain depuis le wallet de l’émetteur
     const diplomaId = await this.blockchainService.issueDiplomaFrom(
       userWallet.privateKey,
       ipfsHash,
     );
+
     return {
       diplomaId,
       owner: userWallet.address,
@@ -48,44 +51,58 @@ export class DiplomaController {
     if (!fromWallet || !toWallet) {
       return { error: 'Wallet not found for given user IDs' };
     }
-    // Appel du smart contract pour transférer
+
     await this.blockchainService.transferDiplomaFrom(
       fromWallet.privateKey,
       diplomaId,
       toWallet.address,
     );
+
     return {
       message: `Diploma ${diplomaId} transferred from ${fromWallet.address} to ${toWallet.address}`,
     };
   }
 
-  // Récupérer les infos d'un diplôme (on-chain et hors-chain)
+  // Récupérer les infos d'un diplôme (on-chain + off-chain)
   @Get(':id')
   async getDiploma(@Param('id') id: number) {
     const info = await this.blockchainService.getDiplomaInfo(id);
-    let content = null;
+
+    let content: any = null;
     try {
       content = this.ipfsService.retrieveJSON(info.ipfsHash);
-    } catch (e) {
+    } catch {
       content = null;
     }
+
     return {
       diplomaId: id,
       owner: info.owner,
       valid: info.valid,
-      data: content, // contenu JSON du diplôme (peut être null si non trouvé, mais en principe devrait exister)
+      data: content,
     };
   }
 
-  // (Optionnel) Lister tous les diplômes existants
+  // (Optionnel) Lister quelques diplômes — ici, simple exemple avec l'ID 0 si présent
   @Get()
   async listDiplomas() {
-    const total = (await this.blockchainService
-      .getDiplomaInfo(0)
-      .catch(() => null))
-      ? await (await this.blockchainService.getDiplomaInfo(0)).then(() => true)
-      : false;
-    // La méthode ci-dessus n'est pas très élégante pour compter. Alternativement, on pourrait avoir BlockchainService exposer diplomaCount via contract.
-    // Pour simplifier, supposons qu'on a connaissance de diplomaCount via un event ou stockage en parallèle.
+    try {
+      const info = await this.blockchainService.getDiplomaInfo(0);
+      let content: any = null;
+      try {
+        content = this.ipfsService.retrieveJSON(info.ipfsHash);
+      } catch {}
+      return [
+        {
+          diplomaId: 0,
+          owner: info.owner,
+          valid: info.valid,
+          data: content,
+        },
+      ];
+    } catch {
+      // Rien d'émis encore
+      return [];
+    }
   }
 }
