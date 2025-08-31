@@ -1,57 +1,86 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# TUV-CB Blockchain
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+Cette application combine **Hardhat** et **NestJS** pour émettre, transférer et
+consulter des diplômes stockés sur une blockchain locale. Les données des
+diplômes sont sérialisées dans un stockage IPFS simulé.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Structure du projet
 
-## Project Overview
+- `hardhat.config.ts` – configuration Hardhat avec les sources Solidity dans
+  `src/Blockchain/contracts` et les artefacts générés dans
+  `src/Blockchain/artifacts`.
+- `src/main.ts` – point d'entrée de l'application NestJS.
+- `src/app.module.ts` – enregistre les contrôleurs et services principaux.
+- `src/Blockchain/blockchain.service.ts` – initialise le provider, déploie le
+  contrat `DiplomaRegistry` et expose des méthodes pour émettre, transférer et
+  lire des diplômes.
+- `src/Blockchain/contracts/Diploma.sol` – contrat Solidity gérant la
+  délivrance et la propriété des diplômes.
+- `src/wallets/wallet.service.ts` & `src/wallets/wallet.controller.ts` –
+  création de portefeuilles utilisateurs et endpoints REST associés.
+- `src/diploma/diploma.controller.ts` – routes REST pour émettre, transférer et
+  consulter les diplômes.
+- `src/ipfs/ipfs.service.ts` – stockage local simulant IPFS pour les données de
+  diplômes.
+- `test/Counter.ts` – tests Hardhat d'exemple.
+- `test/app.e2e-spec.ts` – test e2e de l'API NestJS.
 
-This example project includes:
+## Installation
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+```bash
+npm install
+```
 
-## Usage
+## Compilation des contrats
 
-### Running Tests
+```bash
+npx hardhat compile
+```
 
-To run all the tests in the project, execute the following command:
+## Lancement de l'environnement de développement
 
-```shell
+1. Démarrer un nœud local :
+
+```bash
+npx hardhat node
+```
+
+2. Lancer l'API :
+
+```bash
+npm run start:dev
+```
+
+Le service écoute par défaut sur `http://localhost:3000`.
+
+## API principale
+
+### Wallets
+
+- `POST /wallets` : crée un portefeuille et le crédite en ETH de test.
+- `GET /wallets` : liste des portefeuilles existants.
+
+### Diplômes
+
+- `POST /diplomas/issue` : émet un diplôme depuis l'id d'un wallet et des
+  données JSON (`{ userId, diplomaData }`).
+- `POST /diplomas/transfer` : transfère un diplôme vers un autre wallet
+  (`{ fromUserId, toUserId, diplomaId }`).
+- `GET /diplomas/:id` : récupère les informations on-chain et off-chain d'un
+  diplôme.
+
+## Variables d'environnement
+
+- `RPC_URL` : URL du nœud Ethereum (défaut `http://127.0.0.1:8545`).
+- `DEPLOYER_PK` : clé privée du compte déployeur. Sinon un wallet aléatoire est
+  financé automatiquement.
+- `DIPLOMA_ADDRESS` : adresse d'un contrat `DiplomaRegistry` déjà déployé.
+- `IPFS_STORE_DIR` : dossier pour stocker les fichiers JSON simulant IPFS.
+- `PORT` : port HTTP pour l'API NestJS.
+
+## Tests
+
+```bash
+npm test
 npx hardhat test
-```
-
-You can also selectively run the Solidity or `mocha` tests:
-
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
-```
-
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
-```
-
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
-
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
 ```
