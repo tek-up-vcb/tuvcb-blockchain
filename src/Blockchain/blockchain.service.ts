@@ -98,32 +98,55 @@ export class BlockchainService implements OnModuleInit {
   private loadArtifact(
     contractName: string,
   ): { abi: any; bytecode: `0x${string}` } | null {
-    // Hardhat : artifacts/contracts/<Nom>.sol/<Nom>.json
-    const candidatePaths = [
-      path.join(
-        process.cwd(),
+    // Racines possibles (selon casse)
+    const artifactRoots = [
+      path.join(process.cwd(), 'src', 'Blockchain', 'artifacts'),
+      path.join(process.cwd(), 'src', 'blockchain', 'artifacts'),
+    ];
+
+    for (const root of artifactRoots) {
+      if (!fs.existsSync(root)) continue;
+
+      // 1) Chemin direct attendu avec sources="./src/Blockchain/contracts"
+      const direct = path.join(
+        root,
         'src',
         'Blockchain',
-        'artifacts',
         'contracts',
         `${contractName}.sol`,
         `${contractName}.json`,
-      ),
-      path.join(
-        process.cwd(),
-        'src',
-        'Blockchain',
-        'artifacts',
-        'contracts',
-        'Diploma.sol',
-        'Diploma.json',
-      ),
-    ];
+      );
+      if (fs.existsSync(direct)) {
+        const a = JSON.parse(fs.readFileSync(direct, 'utf8'));
+        return { abi: a.abi, bytecode: a.bytecode };
+      }
 
-    for (const p of candidatePaths) {
-      if (fs.existsSync(p)) {
-        const artifact = JSON.parse(fs.readFileSync(p, 'utf-8'));
-        return { abi: artifact.abi, bytecode: artifact.bytecode };
+      // 2) Fallback: scanner tous les JSON pour retrouver le bon contractName
+      const stack: string[] = [root];
+      while (stack.length) {
+        const dir = stack.pop()!;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const e of entries) {
+          const p = path.join(dir, e.name);
+          if (e.isDirectory()) {
+            stack.push(p);
+            continue;
+          }
+          if (e.isFile() && p.endsWith('.json')) {
+            try {
+              const a = JSON.parse(fs.readFileSync(p, 'utf8'));
+              const name = String(a?.contractName || '').toLowerCase();
+              if (
+                name === contractName.toLowerCase() ||
+                ['diploma', 'diplomaregistry'].includes(name)
+              ) {
+                return { abi: a.abi, bytecode: a.bytecode };
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+        }
       }
     }
     return null;

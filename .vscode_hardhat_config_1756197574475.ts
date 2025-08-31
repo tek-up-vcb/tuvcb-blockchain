@@ -11,14 +11,14 @@ const config: HardhatUserConfig = {
       // il crée 20 comptes avec 10000 ETH fictifs chacun)
       mining: {
         auto: true,
-        interval: 0, // mine instantanément chaque transaction
+        interval: 1000, // mine instantanément chaque transaction
       },
     },
     // on pourrait configurer d'autres réseaux (testnets, etc.) si besoin
   },
   paths: {
-    sources: './src/blockchain/contracts', // emplacement des contrats Solidity
-    artifacts: './src/blockchain/artifacts', // où générer les fichiers compilés (ABI, bytecode)
+    sources: './src/Blockchain/contracts', // emplacement des contrats Solidity
+    artifacts: './src/Blockchain/artifacts', // où générer les fichiers compilés (ABI, bytecode)
   },
 };
 
