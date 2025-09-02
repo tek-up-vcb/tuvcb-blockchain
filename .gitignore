@@ -18,3 +18,17 @@
 
 # Hardhat coverage reports
 /coverage
+# Local environment variables
+.env
+
+# VSCode Hardhat auto-generated config
+.vscode_hardhat_config_*.ts
+
+# VSCode workspace settings
+.vscode/
+
+# Hardhat Ignition deployments
+/ignition/deployments
+
+# TypeScript incremental build info
+*.tsbuildinfo
