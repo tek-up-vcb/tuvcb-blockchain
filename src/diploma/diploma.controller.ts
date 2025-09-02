@@ -1,133 +1,20 @@
-// src/diploma/diploma.controller.ts
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  Param,
-  ParseIntPipe,
-  Query,
-} from '@nestjs/common';
-
+import { Controller, Get, Param } from '@nestjs/common';
 import { BlockchainService } from '../Blockchain/blockchain.service.js';
-import { WalletService } from '../wallets/wallet.service.js';
-import { IpfsService } from '../ipfs/ipfs.service.js';
 
+// Contrôleur simplifié: expose seulement la lecture des events issus du trigger on-chain
 @Controller('diplomas')
 export class DiplomaController {
-  constructor(
-    private readonly blockchainService: BlockchainService,
-    private readonly walletService: WalletService,
-    private readonly ipfsService: IpfsService,
-  ) {}
+  constructor(private readonly chain: BlockchainService) {}
 
-  // --- Publier un diplôme ---
-  @Post('issue')
-  async issueDiploma(
-    @Body('userId') userId: number,
-    @Body('diplomaData') diplomaData: any,
-  ) {
-    const userWallet = this.walletService.getWalletById(userId);
-    if (!userWallet) return { error: 'User wallet not found' };
-
-    const ipfsHash = this.ipfsService.storeJSON(diplomaData); // IPFS simulé (retourne un hash)
-    const diplomaId = await this.blockchainService.issueDiplomaFrom(
-      userWallet.privateKey,
-      ipfsHash,
-    );
-
-    return { diplomaId, owner: userWallet.address, ipfsHash };
+  // Tous les events DiplomaIssued
+  @Get('events')
+  async allEvents() {
+    return this.chain.getAllEvents();
   }
 
-  // --- Transférer un diplôme ---
-  @Post('transfer')
-  async transferDiploma(
-    @Body('fromUserId') fromUserId: number,
-    @Body('toUserId') toUserId: number,
-    @Body('diplomaId') diplomaId: number,
-  ) {
-    const fromWallet = this.walletService.getWalletById(fromUserId);
-    const toWallet = this.walletService.getWalletById(toUserId);
-    if (!fromWallet || !toWallet)
-      return { error: 'Wallet not found for given user IDs' };
-
-    await this.blockchainService.transferDiplomaFrom(
-      fromWallet.privateKey,
-      diplomaId,
-      toWallet.address,
-    );
-
-    return {
-      message: `Diploma ${diplomaId} transferred from ${fromWallet.address} to ${toWallet.address}`,
-    };
-  }
-
-  // 1) Historique d'un diplôme (events -> txHash, blockHash, parentHash, timestamp)
-  @Get(':id/history')
-  async history(@Param('id', ParseIntPipe) id: number) {
-    return this.blockchainService.getDiplomaHistory(id);
-  }
-
-  // 2) Détails d'une transaction (decode input & logs)
-  @Get('tx/:hash')
-  async txDetails(@Param('hash') hash: string) {
-    return this.blockchainService.getTxDetails(hash);
-  }
-
-  // 3) Détails d'un block (par numéro ou hash)
-  @Get('block/:ref')
-  async blockDetails(@Param('ref') ref: string) {
-    // ref peut être 'latest', un numéro ('12345') ou un hash '0x...'
-    const blockRef = /^\d+$/.test(ref) ? Number(ref) : ref;
-    return this.blockchainService.getBlockDetails(blockRef);
-  }
-
-  // --- Lister tous les diplômes (place AVANT :id) ---
-  @Get('all')
-  async listAll(@Query('includeData') includeData?: string) {
-    const withData = String(includeData ?? '').toLowerCase() === 'true';
-    return this.blockchainService.getAllDiplomas({ includeData: withData });
-  }
-
-  // --- Récupérer un diplôme par ID (SANS regex ; ParseIntPipe suffit) ---
-  @Get(':id')
-  async getOne(@Param('id', ParseIntPipe) id: number) {
-    // borne pour éviter un revert du contrat
-    const total = await this.blockchainService
-      .getDiplomaCount()
-      .catch(() => null);
-    if (total !== null && (id < 0 || id >= total)) {
-      return {
-        statusCode: 404,
-        message: `Diploma ${id} not found (valid range: 0..${Math.max(0, total - 1)})`,
-      };
-    }
-
-    const info = await this.blockchainService.getDiplomaInfo(id);
-    let data: any = null;
-    try {
-      data = this.ipfsService.retrieveJSON(info.ipfsHash);
-    } catch {
-      data = null;
-    }
-
-    return { diplomaId: id, owner: info.owner, valid: info.valid, data };
-  }
-
-  // --- (Optionnel) Exemple simple pour /diplomas ---
-  @Get()
-  async listDiplomas() {
-    try {
-      const info = await this.blockchainService.getDiplomaInfo(0);
-      let content: any = null;
-      try {
-        content = this.ipfsService.retrieveJSON(info.ipfsHash);
-      } catch {}
-      return [
-        { diplomaId: 0, owner: info.owner, valid: info.valid, data: content },
-      ];
-    } catch {
-      return [];
-    }
+  // Events d'un batch spécifique
+  @Get('events/:batchId')
+  async batchEvents(@Param('batchId') batchId: string) {
+    return this.chain.getEventsByBatch(batchId);
   }
 }

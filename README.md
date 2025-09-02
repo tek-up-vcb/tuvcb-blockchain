@@ -1,3 +1,44 @@
+# tuvcb-blockchain
+
+Service NestJS minimal pour interaction avec le smart‑contract `DiplomaRegistry`.
+
+## Fonctionnalités actives
+* Déploiement d'un contrat Registry (`POST /blockchain/registry/deploy`)
+* Configuration d'une adresse de contrat existante (`POST /blockchain/registry/set-address`)
+* Emission en lot de diplômes (hashes) (`POST /blockchain/registry/issue`)
+* Lecture des évènements par batch (`GET /blockchain/registry/events/:batchId`)
+* Lecture de tous les évènements `DiplomaIssued` (via `GET /diplomas/events` supprimé si le contrôleur n'est plus nécessaire)
+
+## Nettoyage IPFS
+La logique IPFS et la simulation associée ont été retirées. Si vous voyez encore des erreurs de build mentionnant `ipfs` ou des méthodes comme `issueDiplomaFrom`, assurez‑vous d'avoir:
+1. Supprimé le dossier `src/simulation` (fait dans ce repo).
+2. Supprimé tout contrôleur obsolète (`diploma.controller.ts`).
+3. Rebuildé l'image Docker sans cache: `docker compose build --no-cache tuvcb-blockchain`.
+
+## Variables d'environnement principales
+```
+RPC_URL=http://hardhat:8545
+PRIVATE_KEY=0x.... (clé pour signer)
+DIPLOMA_ADDRESS=0x... (optionnel si contrat déjà déployé)
+```
+
+## Flux type
+1. (Optionnel) Déployer: `POST /blockchain/registry/deploy` -> retourne `address`.
+2. (Sinon) Fixer l'adresse existante: `POST /blockchain/registry/set-address { address }`.
+3. Emettre un lot: `POST /blockchain/registry/issue { batchId, diplome, hashes }` où `hashes` est un tableau de hex (préfixe 0x optionnel).
+4. Consulter évènements: `GET /blockchain/registry/events/:batchId`.
+
+## Artifacts
+Les artifacts Hardhat nécessaires sont copiés dans l'image Docker à partir de `src/Blockchain/artifacts`.
+
+## Développement local
+Lancer Hardhat séparément (ex: `npx hardhat node`) puis `npm run start:dev`.
+
+## Tests
+A compléter (aucun test spécifique au service blockchain pour l'instant).
+
+---
+Ce fichier a été mis à jour pour refléter l'abandon d'IPFS.
 # TUV-CB Blockchain
 
 Cette application combine **Hardhat** et **NestJS** pour émettre, transférer et
@@ -29,6 +70,74 @@ diplômes sont sérialisées dans un stockage IPFS simulé.
 
 ```bash
 npm install
+```
+
+## Contrat DiplomaRegistry (événements uniquement)
+
+Le service expose un contrat `DiplomaRegistry` qui émet un event `DiplomaIssued(batchId, diplome, diplomaHash, timestamp)` pour chaque diplôme d'un batch.
+
+### Routes HTTP
+
+Base: `http://localhost:3000/registry`
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| POST | /registry/deploy | Déploie le contrat et renvoie son adresse |
+| POST | /registry/set-address | Définit une adresse existante déjà déployée `{ address }` |
+| POST | /registry/issue | Émet les events pour un batch `{ batchId, diplome, hashes[] }` |
+| GET | /registry/events/:batchId | Récupère les events `DiplomaIssued` pour un batch |
+| GET | /registry/address | Adresse courante configurée |
+
+### Exemples cURL
+
+Déploiement du contrat:
+
+```bash
+curl -X POST http://localhost:3000/registry/deploy
+```
+
+Définir manuellement une adresse existante:
+
+```bash
+curl -X POST http://localhost:3000/registry/set-address \
+  -H "Content-Type: application/json" \
+  -d '{"address":"0x1234..."}'
+```
+
+Émettre un batch de diplômes:
+
+```bash
+curl -X POST http://localhost:3000/registry/issue \
+  -H "Content-Type: application/json" \
+  -d '{
+    "batchId":"2025-ING-1",
+    "diplome":"Ingenieur Informatique",
+    "hashes":[
+      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ]
+  }'
+```
+
+Lister les events d'un batch:
+
+```bash
+curl http://localhost:3000/registry/events/2025-ING-1
+```
+
+Réponse type:
+
+```json
+[
+  {
+    "txHash": "0x...",
+    "blockNumber": 12,
+    "batchId": "2025-ING-1",
+    "diplome": "Ingenieur Informatique",
+    "diplomaHash": "0xaaaaaaaa...",
+    "timestamp": 1735859200
+  }
+]
 ```
 
 ## Compilation des contrats
