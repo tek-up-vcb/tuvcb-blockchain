@@ -12,6 +12,8 @@ import {
 import { BlockchainService } from '../Blockchain/blockchain.service.js';
 import { WalletService } from '../wallets/wallet.service.js';
 import { IpfsService } from '../ipfs/ipfs.service.js';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 @Controller('diplomas')
 export class DiplomaController {
@@ -31,6 +33,29 @@ export class DiplomaController {
     if (!userWallet) return { error: 'User wallet not found' };
 
     const ipfsHash = this.ipfsService.storeJSON(diplomaData); // IPFS simulé (retourne un hash)
+    const diplomaId = await this.blockchainService.issueDiplomaFrom(
+      userWallet.privateKey,
+      ipfsHash,
+    );
+
+    return { diplomaId, owner: userWallet.address, ipfsHash };
+  }
+
+  // --- Publier un diplôme à partir d'un PDF ---
+  @Post('issue-pdf')
+  async issueDiplomaPdf(@Body('userId') userId: number) {
+    const userWallet = this.walletService.getWalletById(userId);
+    if (!userWallet) return { error: 'User wallet not found' };
+
+    const pdfPath = path.join(
+      process.cwd(),
+      'src',
+      'diplome',
+      'projet_exemple.pdf',
+    );
+    if (!fs.existsSync(pdfPath)) return { error: 'PDF file not found' };
+
+    const ipfsHash = this.ipfsService.storeFile(pdfPath);
     const diplomaId = await this.blockchainService.issueDiplomaFrom(
       userWallet.privateKey,
       ipfsHash,

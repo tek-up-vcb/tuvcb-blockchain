@@ -41,6 +41,16 @@ export class IpfsService {
     return hash;
   }
 
+  // Stocker un fichier binaire (ex: PDF), retourner un hash
+  storeFile(filePath: string): string {
+    const content = fs.readFileSync(filePath);
+    const hash = createHash('sha256').update(content).digest('hex');
+    const ext = path.extname(filePath) || '.bin';
+    const filename = path.join(this.storageDir, `${hash}${ext}`);
+    fs.writeFileSync(filename, content);
+    return hash;
+  }
+
   // Récupérer (lire) un fichier JSON à partir du hash
   retrieveJSON(hash: string): any {
     const filename = path.join(this.storageDir, `${hash}.json`);

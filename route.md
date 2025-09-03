@@ -7,6 +7,7 @@
 | Wallets    | GET    | `/wallets`              | Liste tous les portefeuilles créés.                                                        |
 | Diplomas   | POST   | `/diplomas/issue`       | Publie un diplôme pour un utilisateur (`userId`, `diplomaData`).                           |
 | Diplomas   | POST   | `/diplomas/transfer`    | Transfère un diplôme (`diplomaId`) d'un utilisateur à un autre (`fromUserId`, `toUserId`). |
+| Diplomas   | POST   | `/diplomas/issue-pdf`   | Publie le PDF d'exemple pour un utilisateur (`userId`).                                    |
 | Diplomas   | GET    | `/diplomas/:id/history` | Historique des événements du diplôme `id`.                                                 |
 | Diplomas   | GET    | `/diplomas/tx/:hash`    | Détails d'une transaction `hash`.                                                          |
 | Diplomas   | GET    | `/diplomas/block/:ref`  | Détails d'un bloc par numéro ou hash (`ref`).                                              |
